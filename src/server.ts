@@ -60,7 +60,7 @@ export class ReviewAgent extends AIChatAgent<Env> {
     const workersai = createWorkersAI({ binding: this.env.AI });
 
     const result = streamText({
-      model: workersai("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
+      model: workersai("@cf/google/gemma-4-26b-a4b-it", {
         sessionAffinity: this.sessionAffinity
       }),
       system: SYSTEM_PROMPT,

@@ -320,21 +320,7 @@ function Chat() {
     stop,
     status
   } = useAgentChat({
-    agent,
-    onToolCall: async (event) => {
-      if (
-        "addToolOutput" in event &&
-        event.toolCall.toolName === "getUserTimezone"
-      ) {
-        event.addToolOutput({
-          toolCallId: event.toolCall.toolCallId,
-          output: {
-            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-            localTime: new Date().toLocaleTimeString()
-          }
-        });
-      }
-    }
+    agent
   });
 
   const isStreaming = status === "streaming" || status === "submitted";
@@ -667,7 +653,7 @@ function Chat() {
               contents={
                 <div className="flex flex-wrap justify-center gap-2">
                   {[
-                    "Review PR #1 on cloudflare/agents-starter",
+                    "Review PR #1 on TimoWilhelm/reviewbot-agent",
                     "What can you do?",
                     "Paste a diff and I'll review it"
                   ].map((prompt) => (

@@ -13,12 +13,12 @@ Inspired by [Cloudflare's CI-native AI code reviewer](https://blog.cloudflare.co
 | **2 — Tools & AI** | `fetchPR`, `reviewDiff`, Workers AI, AI Gateway, diff noise filter |
 | **3 — Workflows** | `ReviewWorkflow`: 3 parallel specialists + risk tiers + coordinator |
 | **4 — HITL + Schedule** | `needsApproval` before posting, scheduled re-review |
-| **5 — MCP** | Expose `review-diff` as an MCP tool. **Review your own PR.** |
+| **5 — MCP** | Expose `review-pr` and `review-diff` as MCP tools. **Review your own PR.** |
 
 ## Quick start
 
 ```bash
-git clone <this repo>
+git clone https://github.com/TimoWilhelm/reviewbot-agent
 cd reviewbot-agent
 npm install
 npm run dev
@@ -43,14 +43,14 @@ git checkout checkpoint-3-workflows -- src/   # overlay code only, keep your not
 | `checkpoint-2-tools-ai` | + GitHub fetch, single-shot review tool, AI Gateway |
 | `checkpoint-3-workflows` | + 3-specialist workflow with risk tiers |
 | `checkpoint-4-hitl-schedule` | + approval gate + scheduled re-review |
-| `checkpoint-5-mcp` | + MCP server (= `main`) |
+| `checkpoint-5-mcp` | + MCP server |
 
 The branch `pr/the-suspicious-change` contains a deliberately bad diff used as the climax demo in Module 5.
 
 ## Free-tier friendly
 
 Uses only free Cloudflare features:
-- Workers AI: `@cf/meta/llama-3.3-70b-instruct-fp8-fast` (free Neurons)
+- Workers AI: `@cf/google/gemma-4-26b-a4b-it` (free Neurons)
 - Durable Objects: SQLite-backed (free tier)
 - Workflows: free tier (100k steps/day, more than enough)
 - AI Gateway: free tier (100k logs/day)
