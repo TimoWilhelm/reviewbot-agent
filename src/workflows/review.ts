@@ -84,20 +84,24 @@ export class ReviewWorkflow extends WorkflowEntrypoint<Env, ReviewParams> {
         url: fetched.url
       });
 
-      // Step 2: run specialists in parallel (each one is its own checkpointed step)
-      const specialistResults = await Promise.all(
-        fetched.risk.specialists.map((name) =>
-          step.do(`specialist-${name}`, STEP_RETRY, async () => {
-            const out = await runReview(
-              this.env,
-              SPECIALIST_PROMPTS[name],
-              fetched.diffText,
-              { gatewayId: this.env.AI_GATEWAY_ID }
-            );
-            return { name, findings: out.findings, summary: out.summary };
-          })
-        )
-      );
+      // Step 2: run specialists one at a time so we don't overload the model.
+      const specialistResults: {
+        name: string;
+        findings: Finding[];
+        summary: string;
+      }[] = [];
+      for (const name of fetched.risk.specialists) {
+        const out = await step.do(`specialist-${name}`, STEP_RETRY, async () => {
+          const result = await runReview(
+            this.env,
+            SPECIALIST_PROMPTS[name],
+            fetched.diffText,
+            { gatewayId: this.env.AI_GATEWAY_ID }
+          );
+          return { name, findings: result.findings, summary: result.summary };
+        });
+        specialistResults.push(out);
+      }
 
       const allFindings = specialistResults.flatMap((r) => r.findings);
 

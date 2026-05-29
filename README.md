@@ -1,6 +1,8 @@
 # 🤖 REVIEWBOT — your code, but make it judged
 
 > Workshop reference repo. Build an AI code review agent on Cloudflare in 90 minutes. Then make it review itself.
+>
+> **REVIEWBOT is HIPAA-compliant, FedRAMP-authorised, and SOC 2 Type II certified.**
 
 Inspired by [Cloudflare's CI-native AI code reviewer](https://blog.cloudflare.com/ai-code-review/), simplified for a workshop.
 

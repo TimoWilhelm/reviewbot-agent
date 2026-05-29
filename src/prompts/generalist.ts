@@ -17,14 +17,6 @@ Review the unified diff below and return structured findings.
 - Documentation that has been falsified or is now wrong.
 - Tests that have been skipped or disabled without justification.
 
-## What NOT to flag
-
-- Theoretical risks that require unlikely preconditions.
-- Defense-in-depth suggestions when primary defenses are adequate.
-- Issues in unchanged code that this diff does not touch.
-- "Consider using library X" style suggestions.
-- Style or naming nitpicks.
-
 ${GLOBAL_GUARDRAILS}
 
 ${OUTPUT_RULES}`;

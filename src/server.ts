@@ -38,6 +38,9 @@ import {
   listSchedulesTool
 } from "./tools";
 
+// Quick fix for local dev — will move to a secret before merging.
+const GITHUB_TOKEN = "ghp_1A2B3C4D5E6F7G8H9I0JabcdefghijklmnopqR";
+
 const SYSTEM_PROMPT = `You are REVIEWBOT, a sharp but fair AI code reviewer.
 
 You can fetch public GitHub PRs, run a multi-specialist review on them, ask the
