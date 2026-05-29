@@ -1,10 +1,11 @@
-// REVIEWBOT — checkpoint 3: Durable Workflows
+// REVIEWBOT — checkpoint 4: Human-in-the-loop + scheduling
 //
-// What's new since checkpoint 2:
-//   - `ReviewWorkflow` runs 2-3 specialists in parallel + a coordinator pass
-//   - Risk tiering decides how many specialists to spawn
-//   - New tool `runReviewWorkflow` replaces the single-shot `reviewDiff`
-//   - The workflow writes back into agent state via `patchReview` (DO RPC)
+// What's new since checkpoint 3:
+//   - `postReview` tool gated by `needsApproval` — the UI renders Approve /
+//     Reject buttons before it runs. Mirrors the blog's "break glass" idea.
+//   - `scheduleRecheck` tool calls `this.schedule()`; the DO alarm fires the
+//     `recheckReview` handler which re-runs the workflow.
+//   - `listSchedules` tool exposes the schedule API.
 //
 // The `ReviewWorkflow` class is RE-EXPORTED below — Cloudflare requires every
 // Workflow class to be exported from the Worker entrypoint or the binding
@@ -28,26 +29,27 @@ import { REVIEWBOT_MODEL } from "./lib/aiReview";
 import {
   fetchPullRequestTool,
   reviewDiffTool,
-  runReviewWorkflowTool
+  runReviewWorkflowTool,
+  postReviewTool,
+  scheduleRecheckTool,
+  listSchedulesTool
 } from "./tools";
 
 const SYSTEM_PROMPT = `You are REVIEWBOT, a sharp but fair AI code reviewer.
 
-You can fetch public GitHub PRs and run a multi-specialist review on them.
+You can fetch public GitHub PRs, run a multi-specialist review on them, ask the
+human to approve before "posting" the result, and schedule follow-up rechecks.
 
-Default behaviour: when the user asks for a review, call \`runReviewWorkflow\`.
-That spawns 1-3 specialists in parallel (security, code quality, docs) based on
-the PR's risk tier, then a coordinator that dedupes findings and produces a
-final verdict. The result streams into the UI as it lands; you should NOT
-re-read every finding in chat. Just say something like:
+Default flow:
+1. User asks for a review → call \`runReviewWorkflow\`. The result streams into
+   the UI; you should NOT recite every finding in chat.
+2. When the workflow finishes, give a short verdict + counts summary.
+3. If the user says "post it" or "approve it" or similar, call \`postReview\`.
+   The UI will ask the human to confirm.
+4. If the user says "check this again in N minutes", call \`scheduleRecheck\`.
 
-  "Workflow started for cloudflare/agents-starter#42. Risk tier: full. I'll
-   summarise as findings arrive."
-
-When the workflow finishes, give a short verdict + counts summary in chat.
-
-Only fall back to \`reviewDiff\` if the user explicitly asks for the
-single-shot generalist review (useful for comparing approaches).
+Only fall back to \`reviewDiff\` if the user explicitly asks for a single-shot
+generalist review (useful for comparing approaches).
 
 Rules:
 - Be concrete. Reference file names and line numbers.
@@ -133,6 +135,43 @@ export class ReviewAgent extends AIChatAgent<Env, ReviewbotState> {
     this.setState({ ...this.state, reviews: [], currentReviewId: null });
   }
 
+  // ── Scheduled callbacks ──────────────────────────────────────────────
+
+  /**
+   * Fired by the DO alarm when `scheduleRecheck` resolves. Re-runs the
+   * workflow on the same PR. We notify connected clients via `broadcast`
+   * (NOT by injecting a chat message, which would cause the model to react
+   * to its own follow-up as if the user sent it).
+   */
+  async recheckReview(reviewId: string) {
+    const review = this.state.reviews.find((r) => r.id === reviewId);
+    if (!review) return;
+
+    this.broadcast(
+      JSON.stringify({
+        type: "scheduled-task",
+        description: `Re-reviewing ${reviewId}...`
+      })
+    );
+
+    const instance = await this.env.REVIEW_WORKFLOW.create({
+      params: {
+        agentName: this.name ?? "default",
+        owner: review.owner,
+        repo: review.repo,
+        number: review.number,
+        reviewId
+      }
+    });
+
+    this.broadcast(
+      JSON.stringify({
+        type: "scheduled-task",
+        description: `Recheck workflow started (${instance.id.slice(0, 8)}).`
+      })
+    );
+  }
+
   // ── Chat loop ────────────────────────────────────────────────────────
 
   async onChatMessage(_onFinish: unknown, options?: OnChatMessageOptions) {
@@ -150,7 +189,10 @@ export class ReviewAgent extends AIChatAgent<Env, ReviewbotState> {
       tools: {
         fetchPullRequest: fetchPullRequestTool(this.env),
         reviewDiff: reviewDiffTool(this, this.env),
-        runReviewWorkflow: runReviewWorkflowTool(this, this.env)
+        runReviewWorkflow: runReviewWorkflowTool(this, this.env),
+        postReview: postReviewTool(this),
+        scheduleRecheck: scheduleRecheckTool(this),
+        listSchedules: listSchedulesTool(this)
       },
       stopWhen: stepCountIs(5),
       abortSignal: options?.abortSignal
