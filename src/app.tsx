@@ -4,6 +4,7 @@ import { useAgentChat } from "@cloudflare/ai-chat/react";
 import { getToolName, isToolUIPart, type UIMessage } from "ai";
 import type { MCPServersState } from "agents";
 import type { ReviewAgent } from "./server";
+import type { Finding, Review, ReviewbotState } from "./state";
 import {
   Badge,
   Button,
@@ -218,6 +219,107 @@ function ToolPartView({
   return null;
 }
 
+// ── Review findings panel ─────────────────────────────────────────────
+
+const severityStyle: Record<
+  Finding["severity"],
+  { label: string; classes: string }
+> = {
+  critical: {
+    label: "Critical",
+    classes: "bg-red-500/10 text-red-500 border-red-500/30"
+  },
+  warning: {
+    label: "Warning",
+    classes: "bg-amber-500/10 text-amber-500 border-amber-500/30"
+  },
+  suggestion: {
+    label: "Suggestion",
+    classes: "bg-blue-500/10 text-blue-500 border-blue-500/30"
+  }
+};
+
+const verdictStyle: Record<Review["verdict"], { label: string; tone: string }> =
+  {
+    approved: { label: "✓ Approved", tone: "text-kumo-success" },
+    approved_with_comments: {
+      label: "○ Approved with comments",
+      tone: "text-amber-500"
+    },
+    requested_changes: { label: "✗ Requested changes", tone: "text-red-500" },
+    pending: { label: "… Pending", tone: "text-kumo-inactive" }
+  };
+
+function ReviewPanel({ review }: { review: Review }) {
+  const v = verdictStyle[review.verdict];
+  return (
+    <Surface className="rounded-xl ring ring-kumo-line p-4 space-y-3">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="min-w-0">
+          <Text size="sm" bold>
+            <a
+              href={review.url}
+              target="_blank"
+              rel="noreferrer"
+              className="underline decoration-dotted"
+            >
+              {review.owner}/{review.repo}#{review.number}
+            </a>
+          </Text>
+          <Text size="xs" variant="secondary">
+            {review.title}
+          </Text>
+        </div>
+        <div className="flex items-center gap-2">
+          {review.riskTier && (
+            <Badge variant="secondary">{review.riskTier}</Badge>
+          )}
+          <Text size="sm" bold>
+            <span className={v.tone}>{v.label}</span>
+          </Text>
+          {review.status === "reviewing" && (
+            <Badge variant="primary">reviewing...</Badge>
+          )}
+          {review.status === "posted" && (
+            <Badge variant="primary">posted</Badge>
+          )}
+        </div>
+      </div>
+
+      {review.summary && (
+        <Text size="xs" variant="secondary">
+          {review.summary}
+        </Text>
+      )}
+
+      {review.findings.length > 0 && (
+        <ul className="space-y-1.5">
+          {review.findings.map((f, i) => {
+            const s = severityStyle[f.severity];
+            return (
+              <li
+                key={i}
+                className="text-xs flex items-start gap-2 p-2 rounded-lg bg-kumo-control"
+              >
+                <span
+                  className={`shrink-0 px-1.5 py-0.5 rounded border text-[10px] font-bold uppercase ${s.classes}`}
+                >
+                  {s.label}
+                </span>
+                <span className="font-mono text-kumo-subtle shrink-0">
+                  {f.file}
+                  {f.line ? `:${f.line}` : ""}
+                </span>
+                <span className="text-kumo-default">{f.message}</span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Surface>
+  );
+}
+
 // ── Main chat ─────────────────────────────────────────────────────────
 
 function Chat() {
@@ -241,8 +343,12 @@ function Chat() {
   const [mcpUrl, setMcpUrl] = useState("");
   const [isAddingServer, setIsAddingServer] = useState(false);
   const mcpPanelRef = useRef<HTMLDivElement>(null);
+  const [reviewState, setReviewState] = useState<ReviewbotState>({
+    reviews: [],
+    currentReviewId: null
+  });
 
-  const agent = useAgent<ReviewAgent>({
+  const agent = useAgent<ReviewAgent, ReviewbotState>({
     agent: "ReviewAgent",
     onOpen: useCallback(() => setConnected(true), []),
     onClose: useCallback(() => setConnected(false), []),
@@ -250,6 +356,9 @@ function Chat() {
       (error: Event) => console.error("WebSocket error:", error),
       []
     ),
+    onStateUpdate: useCallback((state: ReviewbotState) => {
+      setReviewState(state);
+    }, []),
     onMcpUpdate: useCallback((state: MCPServersState) => {
       setMcpState(state);
     }, []),
@@ -642,6 +751,21 @@ function Chat() {
           </div>
         </div>
       </header>
+
+      {/* Review findings panel */}
+      {(() => {
+        const current = reviewState.reviews.find(
+          (r) => r.id === reviewState.currentReviewId
+        );
+        if (!current) return null;
+        return (
+          <div className="px-5 pt-4 bg-kumo-elevated">
+            <div className="max-w-3xl mx-auto">
+              <ReviewPanel review={current} />
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto">
