@@ -11,20 +11,25 @@
     "run_worker_first": ["/agents/*", "/mcp/*"]
   },
   "durable_objects": {
-    "bindings": [
-      {
-        "class_name": "ReviewAgent",
-        "name": "ReviewAgent"
-      }
-    ]
+    "bindings": [{ "class_name": "ReviewAgent", "name": "ReviewAgent" }]
   },
+  "workflows": [
+    {
+      "name": "review-workflow",
+      "binding": "REVIEW_WORKFLOW",
+      "class_name": "ReviewWorkflow"
+    }
+  ],
   "migrations": [
     {
-      "new_sqlite_classes": ["ReviewAgent"],
-      "tag": "v1"
+      "tag": "v1",
+      "new_sqlite_classes": ["ReviewAgent"]
     }
   ],
   "observability": {
     "enabled": true
+  },
+  "vars": {
+    "AI_GATEWAY_ID": ""
   }
 }

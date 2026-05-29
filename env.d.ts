@@ -9,6 +9,7 @@ declare namespace Cloudflare {
 	interface Env {
 		AI: Ai;
 		ReviewAgent: DurableObjectNamespace<import("./src/server").ReviewAgent>;
+		REVIEW_WORKFLOW: Workflow<import("./src/workflows/review").ReviewParams>;
 		// Optional. Set via `wrangler secret put GITHUB_TOKEN` to raise the
 		// GitHub API rate limit from 60 to 5000 requests/hour.
 		GITHUB_TOKEN?: string;

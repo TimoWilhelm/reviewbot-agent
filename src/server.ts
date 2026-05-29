@@ -1,12 +1,14 @@
-// REVIEWBOT — checkpoint 2: Tools & AI
+// REVIEWBOT — checkpoint 3: Durable Workflows
 //
-// What's new since checkpoint 1:
-//   - Tools: `fetchPullRequest`, `reviewDiff`
-//   - Workers AI single-shot reviewer with the "what to flag / what NOT to flag"
-//     prompt structure from https://blog.cloudflare.com/ai-code-review/
-//   - AI Gateway opt-in via the AI_GATEWAY_ID env var (free tier)
-//   - Diff noise filter (lockfiles, minified bundles)
-//   - State helper `upsertReview` so tools can write back
+// What's new since checkpoint 2:
+//   - `ReviewWorkflow` runs 2-3 specialists in parallel + a coordinator pass
+//   - Risk tiering decides how many specialists to spawn
+//   - New tool `runReviewWorkflow` replaces the single-shot `reviewDiff`
+//   - The workflow writes back into agent state via `patchReview` (DO RPC)
+//
+// The `ReviewWorkflow` class is RE-EXPORTED below — Cloudflare requires every
+// Workflow class to be exported from the Worker entrypoint or the binding
+// silently no-ops at runtime. This is the single most common production bug.
 
 import { createWorkersAI } from "workers-ai-provider";
 import { callable, routeAgentRequest } from "agents";
@@ -23,19 +25,29 @@ import {
   type ReviewbotState
 } from "./state";
 import { REVIEWBOT_MODEL } from "./lib/aiReview";
-import { fetchPullRequestTool, reviewDiffTool } from "./tools";
+import {
+  fetchPullRequestTool,
+  reviewDiffTool,
+  runReviewWorkflowTool
+} from "./tools";
 
 const SYSTEM_PROMPT = `You are REVIEWBOT, a sharp but fair AI code reviewer.
 
-You can fetch public GitHub pull requests and produce structured findings.
+You can fetch public GitHub PRs and run a multi-specialist review on them.
 
-When the user asks you to review a PR:
-1. Call \`reviewDiff\` with owner/repo/number — it does fetch + review in one step.
-2. Summarise the result in 2-3 sentences. Mention the verdict and the count
-   of critical / warning / suggestion findings. Do NOT recite every finding;
-   the UI will render them.
+Default behaviour: when the user asks for a review, call \`runReviewWorkflow\`.
+That spawns 1-3 specialists in parallel (security, code quality, docs) based on
+the PR's risk tier, then a coordinator that dedupes findings and produces a
+final verdict. The result streams into the UI as it lands; you should NOT
+re-read every finding in chat. Just say something like:
 
-If the user just wants to see PR metadata without a review, call \`fetchPullRequest\`.
+  "Workflow started for cloudflare/agents-starter#42. Risk tier: full. I'll
+   summarise as findings arrive."
+
+When the workflow finishes, give a short verdict + counts summary in chat.
+
+Only fall back to \`reviewDiff\` if the user explicitly asks for the
+single-shot generalist review (useful for comparing approaches).
 
 Rules:
 - Be concrete. Reference file names and line numbers.
@@ -64,11 +76,7 @@ export class ReviewAgent extends AIChatAgent<Env, ReviewbotState> {
   }
 
   // ── State helpers ────────────────────────────────────────────────────
-  /**
-   * Insert or update a review by id, and make it the "current" review.
-   * State mutations automatically persist to SQLite and broadcast to all
-   * connected WebSocket clients — the UI updates without polling.
-   */
+
   upsertReview(review: Review) {
     const existing = this.state.reviews.findIndex((r) => r.id === review.id);
     const reviews =
@@ -78,7 +86,37 @@ export class ReviewAgent extends AIChatAgent<Env, ReviewbotState> {
     this.setState({ ...this.state, reviews, currentReviewId: review.id });
   }
 
-  // ── Callable methods (typed RPC from the client) ─────────────────────
+  /**
+   * Called by the workflow over DO RPC to merge partial updates into a review.
+   * Marked public so the workflow can reach it; not exposed as @callable
+   * because clients shouldn't be able to forge findings.
+   */
+  async patchReview(id: string, patch: Partial<Review>) {
+    const reviews = this.state.reviews.map((r) =>
+      r.id === id ? { ...r, ...patch, updatedAt: Date.now() } : r
+    );
+    // If the id wasn't in state yet, create a stub.
+    if (!reviews.some((r) => r.id === id) && patch.owner && patch.repo) {
+      reviews.push({
+        id,
+        owner: patch.owner,
+        repo: patch.repo,
+        number: patch.number ?? 0,
+        title: patch.title ?? id,
+        url: patch.url ?? "",
+        status: patch.status ?? "reviewing",
+        verdict: patch.verdict ?? "pending",
+        findings: patch.findings ?? [],
+        summary: patch.summary,
+        riskTier: patch.riskTier,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      });
+    }
+    this.setState({ ...this.state, reviews, currentReviewId: id });
+  }
+
+  // ── Callable methods ─────────────────────────────────────────────────
 
   @callable()
   async addServer(name: string, url: string) {
@@ -111,7 +149,8 @@ export class ReviewAgent extends AIChatAgent<Env, ReviewbotState> {
       }),
       tools: {
         fetchPullRequest: fetchPullRequestTool(this.env),
-        reviewDiff: reviewDiffTool(this, this.env)
+        reviewDiff: reviewDiffTool(this, this.env),
+        runReviewWorkflow: runReviewWorkflowTool(this, this.env)
       },
       stopWhen: stepCountIs(5),
       abortSignal: options?.abortSignal
@@ -120,6 +159,10 @@ export class ReviewAgent extends AIChatAgent<Env, ReviewbotState> {
     return result.toUIMessageStreamResponse();
   }
 }
+
+// Re-export the workflow class so the binding can find it.
+// Do NOT remove this line — wrangler will not error, but the workflow won't run.
+export { ReviewWorkflow } from "./workflows/review";
 
 export default {
   async fetch(request: Request, env: Env) {
