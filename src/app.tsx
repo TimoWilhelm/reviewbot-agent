@@ -49,6 +49,15 @@ interface Attachment {
   mediaType: string;
 }
 
+interface WorkflowUpdateEvent {
+  id: string;
+  kind: "review-complete" | "review-failed";
+  reviewId: string;
+  message: string;
+  verdict?: Review["verdict"];
+  timestamp: number;
+}
+
 function createAttachment(file: File): Attachment {
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -320,6 +329,25 @@ function ReviewPanel({ review }: { review: Review }) {
   );
 }
 
+function WorkflowUpdateCard({ event }: { event: WorkflowUpdateEvent }) {
+  const isFailure = event.kind === "review-failed";
+  return (
+    <div className="flex justify-start">
+      <Surface className="max-w-[85%] px-4 py-3 rounded-xl ring ring-kumo-line bg-kumo-base">
+        <div className="flex items-center gap-2 mb-1.5">
+          <Badge variant={isFailure ? "destructive" : "secondary"}>
+            {isFailure ? "Review failed" : "Review complete"}
+          </Badge>
+          <Text size="xs" variant="secondary" bold>
+            {event.reviewId}
+          </Text>
+        </div>
+        <Text size="sm">{event.message}</Text>
+      </Surface>
+    </div>
+  );
+}
+
 // ── Main chat ─────────────────────────────────────────────────────────
 
 function Chat() {
@@ -347,6 +375,9 @@ function Chat() {
     reviews: [],
     currentReviewId: null
   });
+  const [workflowEvents, setWorkflowEvents] = useState<WorkflowUpdateEvent[]>(
+    []
+  );
 
   const agent = useAgent<ReviewAgent, ReviewbotState>({
     agent: "ReviewAgent",
@@ -370,6 +401,26 @@ function Chat() {
             toasts.add({
               title: "Scheduled task completed",
               description: data.description,
+              timeout: 0
+            });
+            return;
+          }
+          if (data.type === "workflow-update") {
+            const event: WorkflowUpdateEvent = {
+              id: `${data.reviewId}:${data.kind}:${data.timestamp}`,
+              kind: data.kind,
+              reviewId: data.reviewId,
+              message: data.message,
+              verdict: data.verdict,
+              timestamp: data.timestamp
+            };
+            setWorkflowEvents((current) => [...current, event]);
+            toasts.add({
+              title:
+                data.kind === "review-failed"
+                  ? "Review failed"
+                  : "Review complete",
+              description: data.message,
               timeout: 0
             });
           }
@@ -436,7 +487,7 @@ function Chat() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, workflowEvents]);
 
   // Re-focus the input after streaming ends
   useEffect(() => {
@@ -744,7 +795,11 @@ function Chat() {
             <Button
               variant="secondary"
               icon={<TrashIcon size={16} />}
-              onClick={clearHistory}
+              onClick={async () => {
+                clearHistory();
+                setWorkflowEvents([]);
+                await agent.stub.clearReviews();
+              }}
             >
               Clear
             </Button>
@@ -924,6 +979,10 @@ function Chat() {
               </div>
             );
           })}
+
+          {workflowEvents.map((event) => (
+            <WorkflowUpdateCard key={event.id} event={event} />
+          ))}
 
           <div ref={messagesEndRef} />
         </div>

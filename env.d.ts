@@ -4,11 +4,12 @@
 declare namespace Cloudflare {
 	interface GlobalProps {
 		mainModule: typeof import("./src/server");
-		durableNamespaces: "ReviewAgent";
+		durableNamespaces: "ReviewAgent" | "ReviewMCP";
 	}
 	interface Env {
 		AI: Ai;
 		ReviewAgent: DurableObjectNamespace<import("./src/server").ReviewAgent>;
+		ReviewMCP: DurableObjectNamespace<import("./src/mcp").ReviewMCP>;
 		REVIEW_WORKFLOW: Workflow<import("./src/workflows/review").ReviewParams>;
 		// Optional. Set via `wrangler secret put GITHUB_TOKEN` to raise the
 		// GitHub API rate limit from 60 to 5000 requests/hour.

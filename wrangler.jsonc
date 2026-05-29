@@ -11,7 +11,10 @@
     "run_worker_first": ["/agents/*", "/mcp/*"]
   },
   "durable_objects": {
-    "bindings": [{ "class_name": "ReviewAgent", "name": "ReviewAgent" }]
+    "bindings": [
+      { "class_name": "ReviewAgent", "name": "ReviewAgent" },
+      { "class_name": "ReviewMCP", "name": "ReviewMCP" }
+    ]
   },
   "workflows": [
     {
@@ -24,6 +27,10 @@
     {
       "tag": "v1",
       "new_sqlite_classes": ["ReviewAgent"]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": ["ReviewMCP"]
     }
   ],
   "observability": {

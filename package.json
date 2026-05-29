@@ -3,7 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "description": "REVIEWBOT — an AI code review agent built on Cloudflare. Workshop reference.",
-  "keywords": ["agents", "ai", "cloudflare", "code-review", "workshop"],
+  "keywords": [
+    "agents",
+    "ai",
+    "cloudflare",
+    "code-review",
+    "workshop"
+  ],
   "license": "MIT",
   "type": "module",
   "scripts": {

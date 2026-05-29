@@ -73,7 +73,9 @@ export function diffToPromptText(
   for (const f of files) {
     const block = `### ${f.path}\n${f.patch}\n`;
     if (used + block.length > maxChars) {
-      parts.push(`### (truncated; ${files.length - parts.length} more files omitted)\n`);
+      parts.push(
+        `### (truncated; ${files.length - parts.length} more files omitted)\n`
+      );
       break;
     }
     parts.push(block);

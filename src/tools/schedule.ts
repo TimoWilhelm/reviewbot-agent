@@ -15,7 +15,9 @@ export function scheduleRecheckTool(agent: ReviewAgent) {
     inputSchema: z.object({
       reviewId: z
         .string()
-        .describe("ID of the review to recheck, in the form 'owner/repo#number'"),
+        .describe(
+          "ID of the review to recheck, in the form 'owner/repo#number'"
+        ),
       delaySeconds: z
         .number()
         .int()
@@ -56,7 +58,10 @@ export function listSchedulesTool(agent: ReviewAgent) {
           id: s.id,
           callback: s.callback,
           payload: s.payload,
-          time: typeof s.time === "number" ? new Date(s.time * 1000).toISOString() : null
+          time:
+            typeof s.time === "number"
+              ? new Date(s.time * 1000).toISOString()
+              : null
         }))
       };
     }

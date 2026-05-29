@@ -1,14 +1,17 @@
-// REVIEWBOT — checkpoint 4: Human-in-the-loop + scheduling
+// REVIEWBOT — final workshop app
 //
-// What's new since checkpoint 3:
-//   - `postReview` tool gated by `needsApproval` — the UI renders Approve /
-//     Reject buttons before it runs. Mirrors the blog's "break glass" idea.
-//   - `scheduleRecheck` tool calls `this.schedule()`; the DO alarm fires the
-//     `recheckReview` handler which re-runs the workflow.
-//   - `listSchedules` tool exposes the schedule API.
+// Workshop baseline (checkpoint 5) added:
+//   - `ReviewMCP` exposes review-pr / review-diff as MCP tools
+//   - The fetch handler routes `/mcp` to `ReviewMCP.serve('/mcp')` so
+//     external clients (MCP Inspector, Claude Desktop, OpenCode, Cursor)
+//     can connect and use REVIEWBOT.
 //
-// The `ReviewWorkflow` class is RE-EXPORTED below — Cloudflare requires every
-// Workflow class to be exported from the Worker entrypoint or the binding
+// The current app also pushes short workflow completion / failure notes back
+// into the chat UI so the human gets a concise verdict summary when the review
+// finishes.
+//
+// Re-exports below: Cloudflare requires every Durable Object and Workflow
+// class to be exported from the Worker entrypoint, otherwise the binding
 // silently no-ops at runtime. This is the single most common production bug.
 
 import { createWorkersAI } from "workers-ai-provider";
@@ -42,8 +45,10 @@ human to approve before "posting" the result, and schedule follow-up rechecks.
 
 Default flow:
 1. User asks for a review → call \`runReviewWorkflow\`. The result streams into
-   the UI; you should NOT recite every finding in chat.
-2. When the workflow finishes, give a short verdict + counts summary.
+   the findings panel above the chat; you should NOT recite every finding in
+   chat.
+2. The chat itself will get a short completion note when the workflow finishes.
+   When that happens, give a short verdict + counts summary.
 3. If the user says "post it" or "approve it" or similar, call \`postReview\`.
    The UI will ask the human to confirm.
 4. If the user says "check this again in N minutes", call \`scheduleRecheck\`.
@@ -116,6 +121,66 @@ export class ReviewAgent extends AIChatAgent<Env, ReviewbotState> {
       });
     }
     this.setState({ ...this.state, reviews, currentReviewId: id });
+  }
+
+  /**
+   * Broadcast workflow progress / completion into the connected UI.
+   *
+   * We keep this separate from chat history. The findings panel is the source
+   * of truth, while the chat receives lightweight status cards from the client.
+   */
+  async notifyWorkflowUpdate(payload: {
+    kind: "review-complete" | "review-failed";
+    reviewId: string;
+    verdict?: Review["verdict"];
+    findingCount?: number;
+    criticalCount?: number;
+    warningCount?: number;
+    suggestionCount?: number;
+    message: string;
+  }) {
+    await this.appendWorkflowAssistantMessage(
+      payload.reviewId,
+      payload.message
+    );
+    this.broadcast(
+      JSON.stringify({
+        type: "workflow-update",
+        timestamp: Date.now(),
+        ...payload
+      })
+    );
+  }
+
+  private async appendWorkflowAssistantMessage(reviewId: string, text: string) {
+    const alreadyPresent = this.messages
+      .slice(-5)
+      .some(
+        (message) =>
+          message.role === "assistant" &&
+          message.parts.some(
+            (part) =>
+              part.type === "text" &&
+              part.text === text &&
+              (message.metadata as { reviewId?: string } | undefined)
+                ?.reviewId === reviewId
+          )
+      );
+
+    if (alreadyPresent) return;
+
+    await this.saveMessages((messages) => [
+      ...messages,
+      {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        metadata: {
+          source: "workflow-update",
+          reviewId
+        },
+        parts: [{ type: "text", text }]
+      }
+    ]);
   }
 
   // ── Callable methods ─────────────────────────────────────────────────
@@ -202,12 +267,28 @@ export class ReviewAgent extends AIChatAgent<Env, ReviewbotState> {
   }
 }
 
-// Re-export the workflow class so the binding can find it.
-// Do NOT remove this line — wrangler will not error, but the workflow won't run.
+// Re-exports: the workflow class for the workflow binding, the MCP agent
+// class for the DO binding.
+// Do NOT remove these lines — wrangler will not error, but the bindings won't
+// resolve at runtime.
 export { ReviewWorkflow } from "./workflows/review";
+export { ReviewMCP } from "./mcp";
+
+// Mount the MCP server at /mcp. McpAgent.serve returns a handler that already
+// knows how to drive the DO transport for any incoming MCP request.
+import { ReviewMCP } from "./mcp";
+const mcpHandler = ReviewMCP.serve("/mcp", { binding: "ReviewMCP" });
 
 export default {
-  async fetch(request: Request, env: Env) {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+    const url = new URL(request.url);
+
+    // Route /mcp requests to the MCP server.
+    if (url.pathname === "/mcp" || url.pathname.startsWith("/mcp/")) {
+      return mcpHandler.fetch(request, env, ctx);
+    }
+
+    // Otherwise: hand off to the agent (/agents/*) or 404.
     return (
       (await routeAgentRequest(request, env)) ||
       new Response("Not found", { status: 404 })
