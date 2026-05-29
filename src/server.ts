@@ -1,33 +1,33 @@
-// REVIEWBOT — checkpoint 0: bare reviewer persona, no tools yet.
+// REVIEWBOT — checkpoint 1: Foundations
 //
-// This is your starting point. We have:
-//   - A ReviewAgent that streams chat replies from Workers AI
-//   - A reviewer persona system prompt
-//   - No tools, no state, no workflow, no MCP. Yet.
-//
-// Across the next checkpoints we will add all of those.
+// What's new since checkpoint 0:
+//   - Declared `ReviewbotState` with the agent's tracked reviews
+//   - `initialState` for fresh instances; persisted state for existing ones
+//   - `@callable` helpers the UI can call directly via typed RPC
+//   - System prompt now mentions the (still empty) review tracker
 
 import { createWorkersAI } from "workers-ai-provider";
 import { callable, routeAgentRequest } from "agents";
 import { AIChatAgent, type OnChatMessageOptions } from "@cloudflare/ai-chat";
 import { convertToModelMessages, stepCountIs, streamText } from "ai";
+import { initialReviewbotState, type ReviewbotState } from "./state";
 
 const SYSTEM_PROMPT = `You are REVIEWBOT, a sharp but fair AI code reviewer.
 
-You have not been given any tools yet. When the user asks you to review a pull
-request, explain that you cannot fetch PRs yet, and ask them to paste a diff
-directly. When they paste a diff, give a short review:
+You can see the current set of reviews in your state. You cannot fetch new PRs
+yet — that comes in checkpoint 2. If the user asks for a review, explain that
+they should paste a diff for now, and give them a quick verbal review of it.
 
+Rules:
 - Be concrete. Reference file names and line numbers.
 - Be honest. Say "looks good" when it looks good.
-- Be brief. Bullet points beat paragraphs.
+- Be brief. Bullets beat paragraphs.
 - Do NOT invent function names or imports that are not in the diff.
-- Do NOT suggest "consider adding error handling" on code that already has it.
+- Do NOT suggest "consider adding error handling" on code that already has it.`;
 
-You will get more abilities in later checkpoints.`;
-
-export class ReviewAgent extends AIChatAgent<Env> {
+export class ReviewAgent extends AIChatAgent<Env, ReviewbotState> {
   maxPersistedMessages = 100;
+  initialState: ReviewbotState = initialReviewbotState;
 
   onStart() {
     this.mcp.configureOAuthCallback({
@@ -56,14 +56,23 @@ export class ReviewAgent extends AIChatAgent<Env> {
     await this.removeMcpServer(serverId);
   }
 
+  @callable()
+  async clearReviews() {
+    this.setState({ ...this.state, reviews: [], currentReviewId: null });
+  }
+
   async onChatMessage(_onFinish: unknown, options?: OnChatMessageOptions) {
     const workersai = createWorkersAI({ binding: this.env.AI });
+
+    const reviewSummary = this.state.reviews.length
+      ? `Current reviews: ${this.state.reviews.map((r) => `${r.owner}/${r.repo}#${r.number} (${r.status})`).join(", ")}.`
+      : "No reviews yet.";
 
     const result = streamText({
       model: workersai("@cf/google/gemma-4-26b-a4b-it", {
         sessionAffinity: this.sessionAffinity
       }),
-      system: SYSTEM_PROMPT,
+      system: `${SYSTEM_PROMPT}\n\n${reviewSummary}`,
       messages: await convertToModelMessages(this.messages),
       stopWhen: stepCountIs(5),
       abortSignal: options?.abortSignal
