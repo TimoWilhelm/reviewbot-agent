@@ -16,13 +16,14 @@ The school's exercises point right back at these checkpoints.
 ## Three themes
 
 1. **Coding agent + Cloudflare Skills** — see Module 0 below.
-2. **Zero Trust security** — see "Lock it down with Zero Trust".
-3. **Better than SaaS** — you own the data, models, prompts, and infra.
+2. **Better than SaaS** — you own the data, models, prompts, and infra.
+3. **Zero Trust security (optional extra)** — see "Lock it down with Zero Trust".
 
 ## Modules at a glance
 
-The live 90 minutes covers Modules 0-3. Modules 4-5 + self-review are the
-"what's next" you can finish at your own pace in the school.
+The live 90 minutes covers the five build modules (0-5), with the heavier
+hands-on in 1-4 and MCP often walked through. The self-review capstone and the
+optional Zero Trust lesson you can finish at your own pace in the school.
 
 | #   | Module          | Tag                               | What you add                                                                |
 | --- | --------------- | --------------------------------- | --------------------------------------------------------------------------- |
@@ -30,9 +31,10 @@ The live 90 minutes covers Modules 0-3. Modules 4-5 + self-review are the
 | 1   | Foundations     | `checkpoint-1-foundations`        | `Review` state + persistence + findings panel                               |
 | 2   | Tools & AI      | `checkpoint-2-tools-ai`           | `fetchPullRequest`, `reviewDiff`, Workers AI, AI Gateway, diff noise filter |
 | 3   | Workflows       | `checkpoint-3-workflows`          | `ReviewWorkflow` with 3 parallel specialists + risk tiers + coordinator     |
-| 4   | HITL + Schedule | `checkpoint-4-hitl-schedule`      | `postReview` with `needsApproval`, `scheduleRecheck` (what's next)          |
-| 5   | MCP             | `checkpoint-5-mcp`                | `ReviewMCP` at `/mcp` (what's next)                                         |
-| 🎬  | Self-review     | branch `pr/the-suspicious-change` | The climax. See below.                                                      |
+| 4   | HITL + Schedule | `checkpoint-4-hitl-schedule`      | `postReview` with `needsApproval`, `scheduleRecheck`                        |
+| 5   | MCP             | `checkpoint-5-mcp`                | `ReviewMCP` at `/mcp`                                                        |
+| 🎬  | Self-review     | branch `pr/the-suspicious-change` | The capstone. See below.                                                    |
+| +   | Zero Trust      | _(optional extra, no checkpoint)_ | Access, service tokens, Tunnel. See "Lock it down".                         |
 
 ## Module 0: set up your coding agent + Cloudflare Skills
 
