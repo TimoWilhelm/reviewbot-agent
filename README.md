@@ -1,6 +1,6 @@
 # 🤖 REVIEWBOT — your code, but make it judged
 
-> Workshop reference repo. Build an AI code review agent on Cloudflare in 90 minutes. Then make it review itself.
+> Workshop reference repo. Build an AI code review agent on Cloudflare in 90 minutes.
 
 Inspired by [Cloudflare's CI-native AI code reviewer](https://blog.cloudflare.com/ai-code-review/), simplified for a workshop.
 

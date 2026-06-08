@@ -3,7 +3,7 @@
 > Code companion to the [slide deck](../reviewbot-deck/) and the agent-driven
 > [school](../agents-school/). The presenter drives the deck; you build here with
 > your own coding agent, guided by the school. 90 minutes from blank starter to a
-> deployed AI code reviewer that reviews itself.
+> deployed AI code reviewer.
 
 ## How the three pieces fit
 
@@ -22,7 +22,7 @@ The school's exercises point right back at these checkpoints.
 ## Modules at a glance
 
 The live 90 minutes covers the five build modules (0-5), with the heavier
-hands-on in 1-4 and MCP often walked through. The self-review capstone and the
+hands-on in 1-4 and MCP often walked through. The PR review exercise and the
 optional Zero Trust lesson you can finish at your own pace in the school.
 
 | #   | Module          | Tag                               | What you add                                                                |
@@ -33,7 +33,7 @@ optional Zero Trust lesson you can finish at your own pace in the school.
 | 3   | Workflows       | `checkpoint-3-workflows`          | `ReviewWorkflow` with 3 parallel specialists + risk tiers + coordinator     |
 | 4   | HITL + Schedule | `checkpoint-4-hitl-schedule`      | `postReview` with `needsApproval`, `scheduleRecheck`                        |
 | 5   | MCP             | `checkpoint-5-mcp`                | `ReviewMCP` at `/mcp`                                                        |
-| 🎬  | Self-review     | branch `pr/the-suspicious-change` | The capstone. See below.                                                    |
+| 🎬  | Review a PR     | branch `pr/the-suspicious-change` | The final exercise. See below.                                              |
 | +   | Zero Trust      | _(optional extra, no checkpoint)_ | Access, service tokens, Tunnel. See "Lock it down".                         |
 
 ## Module 0: set up your coding agent + Cloudflare Skills
@@ -86,10 +86,10 @@ git diff checkpoint-2-tools-ai..checkpoint-3-workflows
 If you're recovering mid-module, prefer overlaying with `-- src/` over a full
 checkout — that keeps any notes, scratch files, and README edits you've made.
 
-## The 🎬 self-review demo (Module 5)
+## The 🎬 PR review exercise
 
-The branch `pr/the-suspicious-change` contains a deliberately bad diff against
-the workshop code. To run the climactic demo:
+The branch `pr/the-suspicious-change` contains a deliberately bad diff. To run
+the review:
 
 1. **Fork or mirror this repo to your own GitHub** (so REVIEWBOT can fetch via
    the public API). The Cloudflare team will host the canonical copy at
