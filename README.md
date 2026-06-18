@@ -64,7 +64,16 @@ git checkout checkpoint-3-workflows -- src/   # overlay code only, keep your not
 | `checkpoint-4-hitl-schedule` | + approval gate + scheduled re-review                     |
 | `checkpoint-5-mcp`           | + MCP server (`main` also adds workflow completion cards) |
 
-The branch `pr/the-suspicious-change` contains a deliberately bad diff used as the climax demo in Module 5.
+The branch `pr/the-suspicious-change` contains a deliberately bad diff used as
+the climax demo in Module 5. The canonical hosted demo keeps
+`TimoWilhelm/reviewbot-agent#1` open for the empty-state quick action. If you
+fork or mirror the repo, create the PR in your repo and ask REVIEWBOT to review
+the PR number returned by GitHub.
+
+If you overlay an older checkpoint while preparing the final PR review exercise,
+keep the current `src/lib/risk.ts` and `src/lib/aiReview.ts` fixes from `main` so
+the suspicious diff classifies as `full` and AI Gateway does not replay a cached
+false-negative review.
 
 ## Free-tier friendly
 

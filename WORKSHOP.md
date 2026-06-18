@@ -32,7 +32,7 @@ optional Zero Trust lesson you can finish at your own pace in the school.
 | 2   | Tools & AI      | `checkpoint-2-tools-ai`           | `fetchPullRequest`, `reviewDiff`, Workers AI, AI Gateway, diff noise filter |
 | 3   | Workflows       | `checkpoint-3-workflows`          | `ReviewWorkflow` with 3 parallel specialists + risk tiers + coordinator     |
 | 4   | HITL + Schedule | `checkpoint-4-hitl-schedule`      | `postReview` with `needsApproval`, `scheduleRecheck`                        |
-| 5   | MCP             | `checkpoint-5-mcp`                | `ReviewMCP` at `/mcp`                                                        |
+| 5   | MCP             | `checkpoint-5-mcp`                | `ReviewMCP` at `/mcp`                                                       |
 | 🎬  | Review a PR     | branch `pr/the-suspicious-change` | The final exercise. See below.                                              |
 | +   | Zero Trust      | _(optional extra, no checkpoint)_ | Access, service tokens, Tunnel. See "Lock it down".                         |
 
@@ -103,14 +103,23 @@ the review:
      --title "The suspicious change" --body "Various improvements."
    ```
 
+   Use the PR number printed by `gh pr create`. It is `#1` in a fresh demo repo,
+   but it may be higher if the repo already has pull requests.
+
 3. **Ask REVIEWBOT to review it** in the chat UI:
 
-   > Review PR #1 on `TimoWilhelm/reviewbot-agent`.
+   > Review PR #<number> on `<your-org>/<repo>`.
 
-4. **Watch the workflow fan out.** The risk tier will be `full` (touches
-   security-sensitive paths). All three specialists fire. The coordinator
-   merges their findings. The review card appears immediately, and the
-   findings panel fills in when the workflow finishes.
+   The empty-state quick action points at the canonical host demo,
+   `Review PR #1 on TimoWilhelm/reviewbot-agent`, which is kept open for live
+   workshops. Participants using a fork should type their own repo and PR
+   number instead.
+
+4. **Watch the workflow fan out.** The risk tier will be `full` because the diff
+   adds security-sensitive content: a hardcoded token and `eval()` on
+   PR-description input. All three specialists fire. The coordinator merges
+   their findings. The review card appears immediately, and the findings panel
+   fills in when the workflow finishes.
 
 5. **Approve the post.** REVIEWBOT proposes `postReview` and the chat asks
    you to approve. Click Approve. The review status flips to `posted`.
@@ -165,6 +174,14 @@ scope.
 **"The findings panel is empty"**
 Open DevTools → Network → look for the `/agents/...` WebSocket. State updates
 flow through it. If it's disconnected, refresh the page.
+
+**"The review completes with 0 findings"**
+Make sure you are running a checkpoint that includes the risk-tier fix from
+`main`, or re-run `git checkout main -- src/lib/risk.ts src/lib/aiReview.ts`
+after overlaying an older checkpoint. The suspicious PR must classify as
+`full`; otherwise the security specialist will not run. If AI Gateway is
+enabled, review model calls skip cache so reruns do not reuse an earlier false
+negative.
 
 ## Going further (after the workshop)
 

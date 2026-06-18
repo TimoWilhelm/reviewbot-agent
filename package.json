@@ -17,9 +17,10 @@
     "start": "vite dev",
     "deploy": "vite build && wrangler deploy",
     "types": "wrangler types env.d.ts --include-runtime false",
+    "test:risk": "node --disable-warning=ExperimentalWarning --experimental-strip-types tests/risk.test.mjs",
     "format": "oxfmt --write .",
     "lint": "oxlint src/",
-    "check": "oxfmt --check . && oxlint src/ && tsc"
+    "check": "oxfmt --check . && oxlint src/ && tsc && npm run test:risk"
   },
   "dependencies": {
     "@cloudflare/ai-chat": "^0.7.1",

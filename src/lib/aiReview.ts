@@ -31,7 +31,7 @@ export async function runReview(
   opts: RunOptions = {}
 ): Promise<ReviewResponse> {
   const gateway = opts.gatewayId
-    ? { id: opts.gatewayId, skipCache: false, cacheTtl: 3600 }
+    ? { id: opts.gatewayId, skipCache: true }
     : undefined;
 
   const out = (await env.AI.run(
