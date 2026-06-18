@@ -1,7 +1,7 @@
 // The actual call to Workers AI. Returns Zod-validated findings.
 
 import { z } from "zod";
-import { FindingSchema, type Finding } from "../state";
+import { FindingSchema, type Finding } from "../state.ts";
 
 const ReviewResponseSchema = z.object({
   findings: z.array(FindingSchema).default([]),
@@ -9,14 +9,64 @@ const ReviewResponseSchema = z.object({
 });
 export type ReviewResponse = z.infer<typeof ReviewResponseSchema>;
 
+// Free Workers AI model (covered by the free Neuron allocation). Good enough to
+// catch the planted bugs; swap it for any other instruct model you like.
 export const REVIEWBOT_MODEL = "@cf/google/gemma-4-26b-a4b-it";
 
 interface RunOptions {
   /** Optional AI Gateway id. If set, requests are routed through AI Gateway
    *  for logging, caching, and rate limiting. */
   gatewayId?: string;
-  /** Soft cap. Gemma 4 26b A4B allows much more, but reviews rarely need it. */
+  /** Soft cap on output tokens. Reviews rarely need more. */
   maxTokens?: number;
+}
+
+/**
+ * Workers AI models disagree on response shape. Some return
+ * `{ response: "..." }`; OpenAI-compatible ones return
+ * `{ choices: [{ message: { content: "..." } }] }`. Gemma now uses the
+ * `choices` shape, so reading only `response` silently yielded empty reviews.
+ * Pull the assistant text out of whichever shape we got.
+ */
+export function extractContent(out: unknown): string {
+  if (!out || typeof out !== "object") return "";
+  const o = out as {
+    response?: unknown;
+    choices?: Array<{ message?: { content?: unknown } }>;
+  };
+  const choiceContent = o.choices?.[0]?.message?.content;
+  if (typeof choiceContent === "string" && choiceContent.length > 0) {
+    return choiceContent;
+  }
+  if (typeof o.response === "string") return o.response;
+  return "";
+}
+
+/**
+ * Best-effort JSON extraction. Strips reasoning/think blocks and markdown
+ * fences, then falls back to the first balanced-looking object so a stray
+ * preamble does not blank out a whole specialist.
+ */
+export function parseReviewJson(raw: string): unknown | null {
+  const cleaned = raw
+    .replace(/<think>[\s\S]*?<\/think>/gi, "")
+    .replace(/```(?:json)?/gi, "")
+    .trim();
+
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    const start = cleaned.indexOf("{");
+    const end = cleaned.lastIndexOf("}");
+    if (start !== -1 && end > start) {
+      try {
+        return JSON.parse(cleaned.slice(start, end + 1));
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
 }
 
 /**
@@ -34,7 +84,7 @@ export async function runReview(
     ? { id: opts.gatewayId, skipCache: true }
     : undefined;
 
-  const out = (await env.AI.run(
+  const out = await env.AI.run(
     REVIEWBOT_MODEL,
     {
       messages: [
@@ -44,23 +94,22 @@ export async function runReview(
           content: `Review this diff and respond with JSON only.\n\n${diff}`
         }
       ],
-      max_tokens: opts.maxTokens ?? 2048,
+      max_tokens: opts.maxTokens ?? 4096,
       response_format: { type: "json_object" }
     },
     gateway ? { gateway } : {}
-  )) as { response?: string };
+  );
 
-  const raw = out?.response ?? "";
-  try {
-    const parsed = JSON.parse(raw);
-    const validated = ReviewResponseSchema.parse(parsed);
-    return validated;
-  } catch (_err) {
-    return {
-      findings: [],
-      summary: `[REVIEWBOT could not parse model output as JSON. Raw response: ${raw.slice(0, 200)}]`
-    };
+  const raw = extractContent(out);
+  const parsed = parseReviewJson(raw);
+  if (parsed !== null) {
+    const validated = ReviewResponseSchema.safeParse(parsed);
+    if (validated.success) return validated.data;
   }
+  return {
+    findings: [],
+    summary: `[REVIEWBOT could not parse model output as JSON. Raw response: ${raw.slice(0, 200)}]`
+  };
 }
 
 /** Build a compact "diff text" from a list of files for prompting. */
