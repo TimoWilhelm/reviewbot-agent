@@ -23,6 +23,18 @@ export function runReviewWorkflowTool(agent: ReviewAgent, env: Env) {
     execute: async ({ owner, repo, number }) => {
       const id = `${owner}/${repo}#${number}`;
       const now = Date.now();
+      const existing = agent.state.reviews.find((review) => review.id === id);
+
+      if (existing && existing.status !== "failed") {
+        return {
+          ok: true,
+          reviewId: id,
+          workflowInstanceId: null,
+          riskTier: existing.riskTier ?? "unknown",
+          alreadyRunning: existing.status === "reviewing",
+          alreadyReviewed: existing.status !== "reviewing"
+        };
+      }
 
       // Quick pre-flight: fetch the PR once so we can show metadata + risk tier
       // in the UI immediately. The workflow will fetch again in its first step
