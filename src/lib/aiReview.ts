@@ -31,7 +31,7 @@ export async function runReview(
   opts: RunOptions = {}
 ): Promise<ReviewResponse> {
   const gateway = opts.gatewayId
-    ? { id: opts.gatewayId, skipCache: false, cacheTtl: 3600 }
+    ? { id: opts.gatewayId, skipCache: true }
     : undefined;
 
   const out = (await env.AI.run(
@@ -73,7 +73,9 @@ export function diffToPromptText(
   for (const f of files) {
     const block = `### ${f.path}\n${f.patch}\n`;
     if (used + block.length > maxChars) {
-      parts.push(`### (truncated; ${files.length - parts.length} more files omitted)\n`);
+      parts.push(
+        `### (truncated; ${files.length - parts.length} more files omitted)\n`
+      );
       break;
     }
     parts.push(block);
